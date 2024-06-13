@@ -1,15 +1,18 @@
+import os
 import psutil
 import json
 import logging
 import threading
 import time
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, abort
 
 app = Flask(__name__)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 REFRESH_RATE = 5  # Refresh rate in seconds
+WEB_SERVER_PORT = int(os.getenv('WEB_SERVER_PORT', 5000))  # Default to 5000 if not set
+ACCESS_TOKEN = os.getenv('ACCESS_TOKEN')  # Get the access token if set
 
 sensors_data = []
 
@@ -111,10 +114,16 @@ def update_system_info():
 
 @app.route('/data.json')
 def data_json():
+    # Check for access token
+    if ACCESS_TOKEN:
+        token = request.headers.get('Authorization')
+        if not token or token != f"Bearer {ACCESS_TOKEN}":
+            abort(401)  # Unauthorized if token is missing or incorrect
+
     return jsonify(sensors_data)
 
 if __name__ == '__main__':
     update_thread = threading.Thread(target=update_system_info)
     update_thread.daemon = True
     update_thread.start()
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=WEB_SERVER_PORT)
