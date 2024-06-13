@@ -18,21 +18,39 @@ def update_system_info():
     global system_info
     while True:
         # Get CPU load
-        cpu_load = psutil.cpu_percent(interval=1)
+        cpu_load = psutil.cpu_percent(interval=1, percpu=True)
 
         # Get memory usage
         memory = psutil.virtual_memory()
         memory_usage = memory.percent
 
-        # Get disk usage
-        disk = psutil.disk_usage('/')
-        disk_usage = disk.percent
+        # Get swap memory usage
+        swap = psutil.swap_memory()
+        swap_usage = swap.percent
+
+        # Get disk usage for all mounted partitions
+        disk_partitions = psutil.disk_partitions()
+        disk_usage = {}
+        for partition in disk_partitions:
+            usage = psutil.disk_usage(partition.mountpoint)
+            disk_usage[partition.device] = usage.percent
 
         # Get CPU temperature
         temperatures = psutil.sensors_temperatures()
         cpu_temp = None
         if 'coretemp' in temperatures:
             cpu_temp = temperatures['coretemp'][0].current
+
+        # Get network usage
+        net_io = psutil.net_io_counters(pernic=True)
+        network_usage = {}
+        for iface, counters in net_io.items():
+            network_usage[iface] = {
+                'bytes_sent': counters.bytes_sent,
+                'bytes_recv': counters.bytes_recv,
+                'packets_sent': counters.packets_sent,
+                'packets_recv': counters.packets_recv
+            }
 
         # Construct the system information JSON
         system_info = {
@@ -49,11 +67,11 @@ def update_system_info():
                                     "Text": "Load",
                                     "Children": [
                                         {
-                                            "Text": "CPU Load",
+                                            "Text": f"CPU Core {i} Load",
                                             "Type": "Load",
-                                            "Value": str(cpu_load),
-                                            "SensorId": "cpu_load"
-                                        }
+                                            "Value": str(load),
+                                            "SensorId": f"cpu_core_{i}_load"
+                                        } for i, load in enumerate(cpu_load)
                                     ]
                                 },
                                 {
@@ -80,6 +98,12 @@ def update_system_info():
                                             "Type": "Memory",
                                             "Value": str(memory_usage),
                                             "SensorId": "memory_usage"
+                                        },
+                                        {
+                                            "Text": "Swap Usage",
+                                            "Type": "Memory",
+                                            "Value": str(swap_usage),
+                                            "SensorId": "swap_usage"
                                         }
                                     ]
                                 }
@@ -89,16 +113,46 @@ def update_system_info():
                             "Text": "Disk",
                             "Children": [
                                 {
-                                    "Text": "Usage",
+                                    "Text": f"Disk {partition} Usage",
+                                    "Type": "Disk",
+                                    "Value": str(usage),
+                                    "SensorId": f"disk_{partition}_usage"
+                                } for partition, usage in disk_usage.items()
+                            ]
+                        },
+                        {
+                            "Text": "Network",
+                            "Children": [
+                                {
+                                    "Text": f"Interface {iface}",
+                                    "Type": "Network",
                                     "Children": [
                                         {
-                                            "Text": "Disk Usage",
-                                            "Type": "Disk",
-                                            "Value": str(disk_usage),
-                                            "SensorId": "disk_usage"
+                                            "Text": "Bytes Sent",
+                                            "Type": "Network",
+                                            "Value": str(counters['bytes_sent']),
+                                            "SensorId": f"net_{iface}_bytes_sent"
+                                        },
+                                        {
+                                            "Text": "Bytes Received",
+                                            "Type": "Network",
+                                            "Value": str(counters['bytes_recv']),
+                                            "SensorId": f"net_{iface}_bytes_recv"
+                                        },
+                                        {
+                                            "Text": "Packets Sent",
+                                            "Type": "Network",
+                                            "Value": str(counters['packets_sent']),
+                                            "SensorId": f"net_{iface}_packets_sent"
+                                        },
+                                        {
+                                            "Text": "Packets Received",
+                                            "Type": "Network",
+                                            "Value": str(counters['packets_recv']),
+                                            "SensorId": f"net_{iface}_packets_recv"
                                         }
                                     ]
-                                }
+                                } for iface, counters in network_usage.items()
                             ]
                         }
                     ]
