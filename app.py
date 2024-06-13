@@ -49,22 +49,23 @@ def update_system_info():
 
         # Get memory usage
         memory = psutil.virtual_memory()
+        memory_children = [
+            {
+                "Text": "Memory Usage",
+                "Type": "Memory",
+                "Value": str(memory.percent),
+                "SensorId": "memory_usage"
+            },
+            {
+                "Text": "Swap Usage",
+                "Type": "Memory",
+                "Value": str(psutil.swap_memory().percent),
+                "SensorId": "swap_usage"
+            }
+        ]
         children.append({
             "Text": "Memory",
-            "Children": [
-                {
-                    "Text": "Memory Usage",
-                    "Type": "Memory",
-                    "Value": str(memory.percent),
-                    "SensorId": "memory_usage"
-                },
-                {
-                    "Text": "Swap Usage",
-                    "Type": "Memory",
-                    "Value": str(psutil.swap_memory().percent),
-                    "SensorId": "swap_usage"
-                }
-            ]
+            "Children": memory_children
         })
 
         # Get disk usage for all mounted partitions
@@ -137,6 +138,7 @@ def update_system_info():
         }
 
         logging.debug("Sensor data refreshed")
+        logging.debug(json.dumps(system_info, indent=4))
 
         if initial_run:
             logging.debug("Initial sensor detection:")
