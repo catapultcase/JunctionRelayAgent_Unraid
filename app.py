@@ -13,9 +13,10 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %
 
 # Global variable to store system info
 system_info = {}
+initial_run = True
 
 def update_system_info():
-    global system_info
+    global system_info, initial_run
     while True:
         children = []
 
@@ -136,6 +137,11 @@ def update_system_info():
         }
 
         logging.debug("Sensor data refreshed")
+
+        if initial_run:
+            logging.debug("Initial sensor detection:")
+            logging.debug(json.dumps(system_info, indent=4))
+            initial_run = False
 
         # Sleep for the refresh rate duration
         time.sleep(int(os.getenv('REFRESH_RATE', '60')))  # Refresh rate in seconds
