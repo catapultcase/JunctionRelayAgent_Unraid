@@ -3,9 +3,13 @@ import json
 import psutil
 import threading
 import time
+import logging
 from flask import Flask, jsonify
 
 app = Flask(__name__)
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Global variable to store system info
 system_info = {}
@@ -101,6 +105,10 @@ def update_system_info():
                 }
             ]
         }
+
+        logging.debug("Sensor data refreshed")
+
+        # Sleep for the refresh rate duration
         time.sleep(int(os.getenv('REFRESH_RATE', '60')))  # Refresh rate in seconds
 
 @app.route('/system-info', methods=['GET'])
