@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>JunctionRelayAgent_Unraid</Name>
+  <Repository>ghcr.io/catapultcase/junctionrelayagent_unraid:latest</Repository>
+  <Registry/>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support/>
+  <Project/>
+  <Overview>This container collects system stats and publishes them to a remote web server which can be connected to via JunctionRelay.</Overview>
+  <Category/>
+  <WebUI>http://[IP]:[PORT:5000]</WebUI>
+  <TemplateURL/>
+  <Icon/>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled>1718307150</DateInstalled>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="WEB_SERVER_PORT" Target="5000" Default="" Mode="tcp" Description="" Type="Port" Display="always" Required="false" Mask="false">5001</Config>
+  <Config Name="REFRESH_RATE" Target="REFRESH_RATE" Default="" Mode="" Description="Refresh rate for sensor data in seconds" Type="Variable" Display="always" Required="false" Mask="false">3</Config>
+  <Config Name="ACCESS_TOKEN" Target="ACCESS_TOKEN" Default="" Mode="" Description="If you want to enable authenticated access only, enter an Access Token here and in the JunctionRelay data source." Type="Variable" Display="always" Required="false" Mask="false">test3</Config>
+</Container>
