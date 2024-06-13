@@ -17,40 +17,111 @@ system_info = {}
 def update_system_info():
     global system_info
     while True:
-        # Get CPU load
-        cpu_load = psutil.cpu_percent(interval=1, percpu=True)
+        children = []
+
+        # Get CPU load for each core
+        cpu_loads = psutil.cpu_percent(interval=1, percpu=True)
+        cpu_children = []
+        for i, load in enumerate(cpu_loads):
+            cpu_children.append({
+                "Text": f"CPU Core {i} Load",
+                "Type": "Load",
+                "Value": str(load),
+                "SensorId": f"cpu_core_{i}_load"
+            })
+        
+        # Get CPU temperature
+        temperatures = psutil.sensors_temperatures()
+        if 'coretemp' in temperatures:
+            cpu_temp = temperatures['coretemp'][0].current
+            cpu_children.append({
+                "Text": "CPU Temperature",
+                "Type": "Temperature",
+                "Value": str(cpu_temp),
+                "SensorId": "cpu_temperature"
+            })
+
+        children.append({
+            "Text": "CPU",
+            "Children": cpu_children
+        })
 
         # Get memory usage
         memory = psutil.virtual_memory()
-        memory_usage = memory.percent
-
-        # Get swap memory usage
-        swap = psutil.swap_memory()
-        swap_usage = swap.percent
+        children.append({
+            "Text": "Memory",
+            "Children": [
+                {
+                    "Text": "Memory Usage",
+                    "Type": "Memory",
+                    "Value": str(memory.percent),
+                    "SensorId": "memory_usage"
+                },
+                {
+                    "Text": "Swap Usage",
+                    "Type": "Memory",
+                    "Value": str(psutil.swap_memory().percent),
+                    "SensorId": "swap_usage"
+                }
+            ]
+        })
 
         # Get disk usage for all mounted partitions
         disk_partitions = psutil.disk_partitions()
-        disk_usage = {}
+        disk_children = []
         for partition in disk_partitions:
             usage = psutil.disk_usage(partition.mountpoint)
-            disk_usage[partition.device] = usage.percent
+            disk_children.append({
+                "Text": f"Disk {partition.device} Usage",
+                "Type": "Disk",
+                "Value": str(usage.percent),
+                "SensorId": f"disk_{partition.device}_usage"
+            })
+        
+        children.append({
+            "Text": "Disk",
+            "Children": disk_children
+        })
 
-        # Get CPU temperature
-        temperatures = psutil.sensors_temperatures()
-        cpu_temp = None
-        if 'coretemp' in temperatures:
-            cpu_temp = temperatures['coretemp'][0].current
-
-        # Get network usage
+        # Get network usage for all interfaces
         net_io = psutil.net_io_counters(pernic=True)
-        network_usage = {}
+        net_children = []
         for iface, counters in net_io.items():
-            network_usage[iface] = {
-                'bytes_sent': counters.bytes_sent,
-                'bytes_recv': counters.bytes_recv,
-                'packets_sent': counters.packets_sent,
-                'packets_recv': counters.packets_recv
-            }
+            net_children.append({
+                "Text": f"Interface {iface}",
+                "Type": "Network",
+                "Children": [
+                    {
+                        "Text": "Bytes Sent",
+                        "Type": "Network",
+                        "Value": str(counters.bytes_sent),
+                        "SensorId": f"net_{iface}_bytes_sent"
+                    },
+                    {
+                        "Text": "Bytes Received",
+                        "Type": "Network",
+                        "Value": str(counters.bytes_recv),
+                        "SensorId": f"net_{iface}_bytes_recv"
+                    },
+                    {
+                        "Text": "Packets Sent",
+                        "Type": "Network",
+                        "Value": str(counters.packets_sent),
+                        "SensorId": f"net_{iface}_packets_sent"
+                    },
+                    {
+                        "Text": "Packets Received",
+                        "Type": "Network",
+                        "Value": str(counters.packets_recv),
+                        "SensorId": f"net_{iface}_packets_recv"
+                    }
+                ]
+            })
+        
+        children.append({
+            "Text": "Network",
+            "Children": net_children
+        })
 
         # Construct the system information JSON
         system_info = {
@@ -59,103 +130,7 @@ def update_system_info():
             "Children": [
                 {
                     "Text": "System Information",
-                    "Children": [
-                        {
-                            "Text": "CPU",
-                            "Children": [
-                                {
-                                    "Text": "Load",
-                                    "Children": [
-                                        {
-                                            "Text": f"CPU Core {i} Load",
-                                            "Type": "Load",
-                                            "Value": str(load),
-                                            "SensorId": f"cpu_core_{i}_load"
-                                        } for i, load in enumerate(cpu_load)
-                                    ]
-                                },
-                                {
-                                    "Text": "Temperature",
-                                    "Children": [
-                                        {
-                                            "Text": "CPU Temperature",
-                                            "Type": "Temperature",
-                                            "Value": str(cpu_temp) if cpu_temp is not None else "N/A",
-                                            "SensorId": "cpu_temperature"
-                                        }
-                                    ]
-                                }
-                            ]
-                        },
-                        {
-                            "Text": "Memory",
-                            "Children": [
-                                {
-                                    "Text": "Usage",
-                                    "Children": [
-                                        {
-                                            "Text": "Memory Usage",
-                                            "Type": "Memory",
-                                            "Value": str(memory_usage),
-                                            "SensorId": "memory_usage"
-                                        },
-                                        {
-                                            "Text": "Swap Usage",
-                                            "Type": "Memory",
-                                            "Value": str(swap_usage),
-                                            "SensorId": "swap_usage"
-                                        }
-                                    ]
-                                }
-                            ]
-                        },
-                        {
-                            "Text": "Disk",
-                            "Children": [
-                                {
-                                    "Text": f"Disk {partition} Usage",
-                                    "Type": "Disk",
-                                    "Value": str(usage),
-                                    "SensorId": f"disk_{partition}_usage"
-                                } for partition, usage in disk_usage.items()
-                            ]
-                        },
-                        {
-                            "Text": "Network",
-                            "Children": [
-                                {
-                                    "Text": f"Interface {iface}",
-                                    "Type": "Network",
-                                    "Children": [
-                                        {
-                                            "Text": "Bytes Sent",
-                                            "Type": "Network",
-                                            "Value": str(counters['bytes_sent']),
-                                            "SensorId": f"net_{iface}_bytes_sent"
-                                        },
-                                        {
-                                            "Text": "Bytes Received",
-                                            "Type": "Network",
-                                            "Value": str(counters['bytes_recv']),
-                                            "SensorId": f"net_{iface}_bytes_recv"
-                                        },
-                                        {
-                                            "Text": "Packets Sent",
-                                            "Type": "Network",
-                                            "Value": str(counters['packets_sent']),
-                                            "SensorId": f"net_{iface}_packets_sent"
-                                        },
-                                        {
-                                            "Text": "Packets Received",
-                                            "Type": "Network",
-                                            "Value": str(counters['packets_recv']),
-                                            "SensorId": f"net_{iface}_packets_recv"
-                                        }
-                                    ]
-                                } for iface, counters in network_usage.items()
-                            ]
-                        }
-                    ]
+                    "Children": children
                 }
             ]
         }
