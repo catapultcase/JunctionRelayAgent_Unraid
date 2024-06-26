@@ -4,20 +4,28 @@ import json
 import logging
 import threading
 import time
+from collections import deque
 from flask import Flask, jsonify, request, abort
 
 app = Flask(__name__)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-REFRESH_RATE = 5  # Refresh rate in seconds
+# Read the refresh rate from environment variable, default to 5 seconds if not set
+REFRESH_RATE = int(os.getenv('REFRESH_RATE', 5))
 WEB_SERVER_PORT = int(os.getenv('WEB_SERVER_PORT', 5000))  # Default to 5000 if not set
 ACCESS_TOKEN = os.getenv('ACCESS_TOKEN')  # Get the access token if set
+LOGGING_HISTORY_TIMEFRAME = int(os.getenv('LOGGING_HISTORY_TIMEFRAME', 1))  # Default to 1 hour if not set
 
 sensors_data = []
+disk_io_previous = {}
+disk_io_max = {}
+disk_io_history = {}
 
 def get_system_sensors():
+    global disk_io_previous, disk_io_max, disk_io_history
     sensors = []
+    current_time = time.time()
 
     # CPU usage per core
     for i, percentage in enumerate(psutil.cpu_percent(percpu=True)):
@@ -58,7 +66,7 @@ def get_system_sensors():
         "SensorId": "swap_usage"
     })
 
-    # Disk usage
+    # Disk usage and I/O statistics
     for part in psutil.disk_partitions():
         usage = psutil.disk_usage(part.mountpoint)
         sensors.append({
@@ -68,44 +76,46 @@ def get_system_sensors():
             "SensorId": f"disk_{part.device.replace('/', '_')}_usage"
         })
 
-    # Disk I/O statistics
     disk_io = psutil.disk_io_counters(perdisk=True)
     for disk, stats in disk_io.items():
+        if disk not in disk_io_previous:
+            disk_io_previous[disk] = stats
+            disk_io_max[disk] = {'read_speed': 0, 'write_speed': 0}
+            disk_io_history[disk] = deque(maxlen=int((LOGGING_HISTORY_TIMEFRAME * 3600) / REFRESH_RATE))
+
+        prev_stats = disk_io_previous[disk]
+        read_speed = (stats.read_bytes - prev_stats.read_bytes) / REFRESH_RATE
+        write_speed = (stats.write_bytes - prev_stats.write_bytes) / REFRESH_RATE
+
+        disk_io_previous[disk] = stats
+        disk_io_history[disk].append((current_time, read_speed, write_speed))
+
+        max_read_speed = max([data[1] for data in disk_io_history[disk]])
+        max_write_speed = max([data[2] for data in disk_io_history[disk]])
+
         sensors.append({
-            "Text": f"Disk {disk} Read Count",
+            "Text": f"Disk {disk} Current Read Speed",
             "Type": "DiskIO",
-            "Value": str(stats.read_count),
-            "SensorId": f"disk_{disk.replace('/', '_')}_read_count"
+            "Value": str(read_speed),
+            "SensorId": f"disk_{disk.replace('/', '_')}_current_read_speed"
         })
         sensors.append({
-            "Text": f"Disk {disk} Write Count",
+            "Text": f"Disk {disk} Current Write Speed",
             "Type": "DiskIO",
-            "Value": str(stats.write_count),
-            "SensorId": f"disk_{disk.replace('/', '_')}_write_count"
+            "Value": str(write_speed),
+            "SensorId": f"disk_{disk.replace('/', '_')}_current_write_speed"
         })
         sensors.append({
-            "Text": f"Disk {disk} Read Bytes",
+            "Text": f"Disk {disk} Max Read Speed",
             "Type": "DiskIO",
-            "Value": str(stats.read_bytes),
-            "SensorId": f"disk_{disk.replace('/', '_')}_read_bytes"
+            "Value": str(max_read_speed),
+            "SensorId": f"disk_{disk.replace('/', '_')}_max_read_speed"
         })
         sensors.append({
-            "Text": f"Disk {disk} Write Bytes",
+            "Text": f"Disk {disk} Max Write Speed",
             "Type": "DiskIO",
-            "Value": str(stats.write_bytes),
-            "SensorId": f"disk_{disk.replace('/', '_')}_write_bytes"
-        })
-        sensors.append({
-            "Text": f"Disk {disk} Read Time",
-            "Type": "DiskIO",
-            "Value": str(stats.read_time),
-            "SensorId": f"disk_{disk.replace('/', '_')}_read_time"
-        })
-        sensors.append({
-            "Text": f"Disk {disk} Write Time",
-            "Type": "DiskIO",
-            "Value": str(stats.write_time),
-            "SensorId": f"disk_{disk.replace('/', '_')}_write_time"
+            "Value": str(max_write_speed),
+            "SensorId": f"disk_{disk.replace('/', '_')}_max_write_speed"
         })
 
     # Network usage
@@ -149,7 +159,8 @@ def update_system_info():
 
     while True:
         sensors_data = get_system_sensors()
-        logging.info("Sensor data refresh completed")
+        logging.info(f"Sensor data refresh completed at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logging.info(f"Sleeping for {REFRESH_RATE} seconds before next refresh")
         time.sleep(REFRESH_RATE)
 
 @app.route('/data.json')
@@ -163,6 +174,7 @@ def data_json():
     return jsonify(sensors_data)
 
 if __name__ == '__main__':
+    logging.info(f"Starting server with refresh rate: {REFRESH_RATE} seconds")
     update_thread = threading.Thread(target=update_system_info)
     update_thread.daemon = True
     update_thread.start()
