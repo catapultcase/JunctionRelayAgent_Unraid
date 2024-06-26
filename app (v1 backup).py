@@ -68,46 +68,6 @@ def get_system_sensors():
             "SensorId": f"disk_{part.device.replace('/', '_')}_usage"
         })
 
-    # Disk I/O statistics
-    disk_io = psutil.disk_io_counters(perdisk=True)
-    for disk, stats in disk_io.items():
-        sensors.append({
-            "Text": f"Disk {disk} Read Count",
-            "Type": "DiskIO",
-            "Value": str(stats.read_count),
-            "SensorId": f"disk_{disk.replace('/', '_')}_read_count"
-        })
-        sensors.append({
-            "Text": f"Disk {disk} Write Count",
-            "Type": "DiskIO",
-            "Value": str(stats.write_count),
-            "SensorId": f"disk_{disk.replace('/', '_')}_write_count"
-        })
-        sensors.append({
-            "Text": f"Disk {disk} Read Bytes",
-            "Type": "DiskIO",
-            "Value": str(stats.read_bytes),
-            "SensorId": f"disk_{disk.replace('/', '_')}_read_bytes"
-        })
-        sensors.append({
-            "Text": f"Disk {disk} Write Bytes",
-            "Type": "DiskIO",
-            "Value": str(stats.write_bytes),
-            "SensorId": f"disk_{disk.replace('/', '_')}_write_bytes"
-        })
-        sensors.append({
-            "Text": f"Disk {disk} Read Time",
-            "Type": "DiskIO",
-            "Value": str(stats.read_time),
-            "SensorId": f"disk_{disk.replace('/', '_')}_read_time"
-        })
-        sensors.append({
-            "Text": f"Disk {disk} Write Time",
-            "Type": "DiskIO",
-            "Value": str(stats.write_time),
-            "SensorId": f"disk_{disk.replace('/', '_')}_write_time"
-        })
-
     # Network usage
     net_io = psutil.net_io_counters(pernic=True)
     for interface, stats in net_io.items():
