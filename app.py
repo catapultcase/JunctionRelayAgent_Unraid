@@ -33,7 +33,8 @@ def get_system_sensors():
             "Text": f"CPU Core {i} Load",
             "Type": "Load",
             "Value": str(percentage),
-            "SensorId": f"cpu_core_{i}_load"
+            "SensorId": f"cpu_core_{i}_load",
+            "Component": "CPU"
         })
 
     # CPU temperatures
@@ -45,7 +46,8 @@ def get_system_sensors():
                     "Text": f"{name} {entry.label or 'Temperature'}",
                     "Type": "Temperature",
                     "Value": str(entry.current),
-                    "SensorId": f"{name}_{entry.label or 'temperature'}"
+                    "SensorId": f"{name}_{entry.label or 'temperature'}",
+                    "Component": "CPU"
                 })
 
     # Memory usage
@@ -54,7 +56,8 @@ def get_system_sensors():
         "Text": "Memory Usage",
         "Type": "Memory",
         "Value": str(mem.percent),
-        "SensorId": "memory_usage"
+        "SensorId": "memory_usage",
+        "Component": "Memory"
     })
 
     # Swap usage
@@ -63,18 +66,23 @@ def get_system_sensors():
         "Text": "Swap Usage",
         "Type": "Memory",
         "Value": str(swap.percent),
-        "SensorId": "swap_usage"
+        "SensorId": "swap_usage",
+        "Component": "Memory"
     })
 
     # Disk usage and I/O statistics
     for part in psutil.disk_partitions():
-        usage = psutil.disk_usage(part.mountpoint)
-        sensors.append({
-            "Text": f"Disk {part.device} Usage",
-            "Type": "Disk",
-            "Value": str(usage.percent),
-            "SensorId": f"disk_{part.device.replace('/', '_')}_usage"
-        })
+        try:
+            usage = psutil.disk_usage(part.mountpoint)
+            sensors.append({
+                "Text": f"Disk {part.device} Usage",
+                "Type": "Disk",
+                "Value": str(usage.percent),
+                "SensorId": f"disk_{part.device.replace('/', '_')}_usage",
+                "Component": "Disk"
+            })
+        except PermissionError:
+            logging.warning(f"Permission error accessing disk usage for {part.device}")
 
     disk_io = psutil.disk_io_counters(perdisk=True)
     for disk, stats in disk_io.items():
@@ -97,25 +105,29 @@ def get_system_sensors():
             "Text": f"Disk {disk} Current Read Speed",
             "Type": "DiskIO",
             "Value": str(read_speed),
-            "SensorId": f"disk_{disk.replace('/', '_')}_current_read_speed"
+            "SensorId": f"disk_{disk.replace('/', '_')}_current_read_speed",
+            "Component": "Disk"
         })
         sensors.append({
             "Text": f"Disk {disk} Current Write Speed",
             "Type": "DiskIO",
             "Value": str(write_speed),
-            "SensorId": f"disk_{disk.replace('/', '_')}_current_write_speed"
+            "SensorId": f"disk_{disk.replace('/', '_')}_current_write_speed",
+            "Component": "Disk"
         })
         sensors.append({
             "Text": f"Disk {disk} Max Read Speed",
             "Type": "DiskIO",
             "Value": str(max_read_speed),
-            "SensorId": f"disk_{disk.replace('/', '_')}_max_read_speed"
+            "SensorId": f"disk_{disk.replace('/', '_')}_max_read_speed",
+            "Component": "Disk"
         })
         sensors.append({
             "Text": f"Disk {disk} Max Write Speed",
             "Type": "DiskIO",
             "Value": str(max_write_speed),
-            "SensorId": f"disk_{disk.replace('/', '_')}_max_write_speed"
+            "SensorId": f"disk_{disk.replace('/', '_')}_max_write_speed",
+            "Component": "Disk"
         })
 
     # Network usage
@@ -125,25 +137,29 @@ def get_system_sensors():
             "Text": f"Bytes Sent on {interface}",
             "Type": "Network",
             "Value": str(stats.bytes_sent),
-            "SensorId": f"net_{interface}_bytes_sent"
+            "SensorId": f"net_{interface}_bytes_sent",
+            "Component": "Network"
         })
         sensors.append({
             "Text": f"Bytes Received on {interface}",
             "Type": "Network",
             "Value": str(stats.bytes_recv),
-            "SensorId": f"net_{interface}_bytes_recv"
+            "SensorId": f"net_{interface}_bytes_recv",
+            "Component": "Network"
         })
         sensors.append({
             "Text": f"Packets Sent on {interface}",
             "Type": "Network",
             "Value": str(stats.packets_sent),
-            "SensorId": f"net_{interface}_packets_sent"
+            "SensorId": f"net_{interface}_packets_sent",
+            "Component": "Network"
         })
         sensors.append({
             "Text": f"Packets Received on {interface}",
             "Type": "Network",
             "Value": str(stats.packets_recv),
-            "SensorId": f"net_{interface}_packets_recv"
+            "SensorId": f"net_{interface}_packets_recv",
+            "Component": "Network"
         })
 
     return sensors
@@ -155,7 +171,7 @@ def update_system_info():
 
     logging.info("Initial sensor detection:")
     for sensor in sensors_data:
-        logging.info(f"Name: {sensor['Text']}, Value: {sensor['Value']}, SensorId: {sensor['SensorId']}, Type: {sensor['Type']}")
+        logging.info(f"Name: {sensor['Text']}, Value: {sensor['Value']}, SensorId: {sensor['SensorId']}, Type: {sensor['Type']}, Component: {sensor['Component']}")
 
     while True:
         sensors_data = get_system_sensors()
