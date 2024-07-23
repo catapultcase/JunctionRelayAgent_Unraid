@@ -6,6 +6,9 @@ import threading
 import time
 from collections import deque
 from flask import Flask, jsonify, request, abort
+from datetime import timedelta
+import subprocess
+import shutil  # Import shutil
 
 app = Flask(__name__)
 
@@ -34,7 +37,7 @@ def get_system_sensors():
             "Type": "Load",
             "Value": str(percentage),
             "SensorId": f"cpu_core_{i}_load",
-            "Component": "CPU"
+            "ComponentName": "CPU"
         })
 
     # CPU temperatures
@@ -47,7 +50,7 @@ def get_system_sensors():
                     "Type": "Temperature",
                     "Value": str(entry.current),
                     "SensorId": f"{name}_{entry.label or 'temperature'}",
-                    "Component": "CPU"
+                    "ComponentName": "CPU"
                 })
 
     # Memory usage
@@ -57,7 +60,7 @@ def get_system_sensors():
         "Type": "Memory",
         "Value": str(mem.percent),
         "SensorId": "memory_usage",
-        "Component": "Memory"
+        "ComponentName": "Memory"
     })
 
     # Swap usage
@@ -67,7 +70,7 @@ def get_system_sensors():
         "Type": "Memory",
         "Value": str(swap.percent),
         "SensorId": "swap_usage",
-        "Component": "Memory"
+        "ComponentName": "Memory"
     })
 
     # Disk usage and I/O statistics
@@ -79,7 +82,7 @@ def get_system_sensors():
                 "Type": "Disk",
                 "Value": str(usage.percent),
                 "SensorId": f"disk_{part.device.replace('/', '_')}_usage",
-                "Component": "Disk"
+                "ComponentName": "Disk"
             })
         except PermissionError:
             logging.warning(f"Permission error accessing disk usage for {part.device}")
@@ -106,28 +109,28 @@ def get_system_sensors():
             "Type": "DiskIO",
             "Value": str(read_speed),
             "SensorId": f"disk_{disk.replace('/', '_')}_current_read_speed",
-            "Component": "Disk"
+            "ComponentName": "Disk"
         })
         sensors.append({
             "Text": f"Disk {disk} Current Write Speed",
             "Type": "DiskIO",
             "Value": str(write_speed),
             "SensorId": f"disk_{disk.replace('/', '_')}_current_write_speed",
-            "Component": "Disk"
+            "ComponentName": "Disk"
         })
         sensors.append({
             "Text": f"Disk {disk} Max Read Speed",
             "Type": "DiskIO",
             "Value": str(max_read_speed),
             "SensorId": f"disk_{disk.replace('/', '_')}_max_read_speed",
-            "Component": "Disk"
+            "ComponentName": "Disk"
         })
         sensors.append({
             "Text": f"Disk {disk} Max Write Speed",
             "Type": "DiskIO",
             "Value": str(max_write_speed),
             "SensorId": f"disk_{disk.replace('/', '_')}_max_write_speed",
-            "Component": "Disk"
+            "ComponentName": "Disk"
         })
 
     # Network usage
@@ -138,29 +141,87 @@ def get_system_sensors():
             "Type": "Network",
             "Value": str(stats.bytes_sent),
             "SensorId": f"net_{interface}_bytes_sent",
-            "Component": "Network"
+            "ComponentName": "Network"
         })
         sensors.append({
             "Text": f"Bytes Received on {interface}",
             "Type": "Network",
             "Value": str(stats.bytes_recv),
             "SensorId": f"net_{interface}_bytes_recv",
-            "Component": "Network"
+            "ComponentName": "Network"
         })
         sensors.append({
             "Text": f"Packets Sent on {interface}",
             "Type": "Network",
             "Value": str(stats.packets_sent),
             "SensorId": f"net_{interface}_packets_sent",
-            "Component": "Network"
+            "ComponentName": "Network"
         })
         sensors.append({
             "Text": f"Packets Received on {interface}",
             "Type": "Network",
             "Value": str(stats.packets_recv),
             "SensorId": f"net_{interface}_packets_recv",
-            "Component": "Network"
+            "ComponentName": "Network"
         })
+
+    # GPU usage (Example: Using NVIDIA-SMI for NVIDIA GPUs)
+    if shutil.which("nvidia-smi") is not None:
+        try:
+            gpu_stats = subprocess.check_output(['nvidia-smi', '--query-gpu=utilization.gpu,temperature.gpu', '--format=csv,noheader,nounits'])
+            gpu_stats = gpu_stats.decode('utf-8').strip().split('\n')
+            for idx, stat in enumerate(gpu_stats):
+                gpu_util, gpu_temp = stat.split(',')
+                sensors.append({
+                    "Text": f"GPU {idx} Utilization",
+                    "Type": "GPU",
+                    "Value": str(gpu_util.strip()),
+                    "SensorId": f"gpu_{idx}_utilization",
+                    "ComponentName": "GPU"
+                })
+                sensors.append({
+                    "Text": f"GPU {idx} Temperature",
+                    "Type": "GPU",
+                    "Value": str(gpu_temp.strip()),
+                    "SensorId": f"gpu_{idx}_temperature",
+                    "ComponentName": "GPU"
+                })
+        except Exception as e:
+            logging.warning(f"Failed to get GPU stats: {e}")
+    else:
+        logging.warning("nvidia-smi command not found. Skipping GPU stats.")
+
+    # System uptime
+    try:
+        uptime_seconds = float(subprocess.check_output(['cat', '/proc/uptime']).decode().split()[0])
+        uptime_string = str(timedelta(seconds=uptime_seconds))
+        sensors.append({
+            "Text": "System Uptime",
+            "Type": "System",
+            "Value": uptime_string,
+            "SensorId": "system_uptime",
+            "ComponentName": "System"
+        })
+    except Exception as e:
+        logging.warning(f"Failed to get system uptime: {e}")
+
+    # Network latency (Ping example)
+    if shutil.which("ping") is not None:
+        try:
+            hostname = "google.com"  # You can change this to any reliable host
+            ping_response = subprocess.check_output(['ping', '-c', '1', hostname]).decode()
+            latency = float([line for line in ping_response.split('\n') if 'time=' in line][0].split('time=')[1].split(' ')[0])
+            sensors.append({
+                "Text": f"Latency to {hostname}",
+                "Type": "Network",
+                "Value": str(latency),
+                "SensorId": f"latency_{hostname}",
+                "ComponentName": "Network"
+            })
+        except Exception as e:
+            logging.warning(f"Failed to get network latency: {e}")
+    else:
+        logging.warning("ping command not found. Skipping network latency.")
 
     return sensors
 
@@ -171,7 +232,7 @@ def update_system_info():
 
     logging.info("Initial sensor detection:")
     for sensor in sensors_data:
-        logging.info(f"Name: {sensor['Text']}, Value: {sensor['Value']}, SensorId: {sensor['SensorId']}, Type: {sensor['Type']}, Component: {sensor['Component']}")
+        logging.info(f"Name: {sensor['Text']}, Value: {sensor['Value']}, SensorId: {sensor['SensorId']}, Type: {sensor['Type']}, ComponentName: {sensor['ComponentName']}")
 
     while True:
         sensors_data = get_system_sensors()
